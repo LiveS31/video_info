@@ -86,13 +86,13 @@ def video_start(cap):  # работаем с видео
         if motion_found and not recording:
             # Движение обнаружено и запись еще не началась
             recording = True
-            video_cam = '/home/lives/Видео/video_' # при необходимости заменить на пусть в виндовс
-            if not os.path.exists(video_cam+datetime.datetime.now().strftime('_%d%m%Y')):  # если нет папки в текущем каталоге
-                os.makedirs(video_cam+datetime.datetime.now().strftime('_%d%m%Y'))
+            video_cam = f'/home/lives/Видео/video_{datetime.datetime.now().strftime('_%d%m%Y')}' # при необходимости заменить на пусть в виндовс
+            if not os.path.exists(video_cam):  # если нет папки в текущем каталоге
+                os.makedirs(video_cam)
             motion_detected_time = time.time()
             #Формируем имя файла для видео
             video_filename = os.path.join(
-                video_cam+datetime.datetime.now().strftime('_%d%m%Y'),  # Предполагается, что у вас есть папка 'video'
+                video_cam,  # Предполагается, что у вас есть папка 'video'
                 f"motion_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
             )
             # Убедимся, что папка для видео существует

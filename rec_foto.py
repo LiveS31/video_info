@@ -13,6 +13,4 @@ def screen_mov(frame, times): #
     filename = os.path.join(screenshot_dir, f"foto_detect_{times}.jpg")
     cv2.imwrite(filename, frame) # Сохраняем весь кадр как картинку
 
-
-    #print (1, times[7:])
     return f"Сохранен скрин: foto_detect_{times}.jpg"

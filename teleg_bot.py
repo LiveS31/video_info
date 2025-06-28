@@ -56,7 +56,7 @@ def message_user(message):
             # интерактивное меню
             buti = types.InlineKeyboardButton(f'{os.listdir(video_cam)[i]}', callback_data=f'skan_video{i}')
             us.add(buti)
-#
+##
     if (message.from_user.id == 0 or message.from_user.id == int(userid)) and message.text.lower() == 'фото 📷':
         # считаем сколько внутри папок и выводимв интерактивное меню
         for ii in range (foto_len):

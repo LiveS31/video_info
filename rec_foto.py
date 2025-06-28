@@ -5,8 +5,11 @@ import cv2
 
 
 # делаем screen по двидению
-def screen_mov(frame, times): #
-    screenshot_dir=f"/home/lives/Изображения/mot_pic{times[6:]}"
+def screen_mov(frame, times):
+    if os.name == 'posix':#
+        screenshot_dir=f"/home/lives/Изображения/mot_pic{times[6:]}"
+    else:
+        screenshot_dir = f"c:\Изображения\mot_pic{times[6:]}"
     if not os.path.exists(screenshot_dir): # если нет папки в текущем каталоге
         os.makedirs(screenshot_dir) # - создаем ее
 

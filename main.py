@@ -90,7 +90,11 @@ def video_start(cap):  # работаем с видео
         if motion_found and not recording:
             # Движение обнаружено и запись еще не началась
             recording = True
-            video_cam = f'/home/lives/Видео/video_{datetime.datetime.now().strftime('_%d%m%Y')}' # при необходимости заменить на пусть в виндовс
+            if os.name == 'posix':
+                video_cam = f'/home/lives/Видео/video_{datetime.datetime.now().strftime('_%d%m%Y')}' # при необходимости заменить
+            else:
+                video_cam = f'c:\video\video_{datetime.datetime.now().strftime('_%d%m%Y')}'  # при необходимости заменить
+
             if not os.path.exists(video_cam):  # если нет папки в текущем каталоге
                 os.makedirs(video_cam)
             motion_detected_time = time.time()

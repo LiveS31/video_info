@@ -63,7 +63,7 @@ def message_user(message):
             # интерактивное меню
             buti = types.InlineKeyboardButton(f'{os.listdir(screenshot_dir)[ii]}', callback_data=f'skan_foto{ii}')
             us.add(buti)
-    #выводим информацию пользователю
+    # Dыводим информацию пользователю
     VideoBot.send_message(message.from_user.id, 'Выберите папку:', reply_markup=us)
 
 

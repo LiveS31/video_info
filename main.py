@@ -9,6 +9,7 @@ import datetime
 
 from collections import deque  # Используем deque для буфера кадров
 from rec_foto import screen_mov  # Предполагается, что эта функция делает скриншоты
+from teleg_bot import message_user
 
 # Определяем константы для времени записи в секундах
 PRE_MOTION_RECORD_TIME = 10
@@ -93,7 +94,7 @@ def video_start(cap):  # работаем с видео
             if os.name == 'posix':
                 video_cam = f'/home/lives/Видео/video_{datetime.datetime.now().strftime('_%d%m%Y')}' # при необходимости заменить
             else:
-                video_cam = f'c:\video\video_{datetime.datetime.now().strftime('_%d%m%Y')}'  # при необходимости заменить
+                video_cam = f'c:\video\video_{datetime.datetime.now().strftime('%d%m%Y')}'  # при необходимости заменить
 
             if not os.path.exists(video_cam):  # если нет папки в текущем каталоге
                 os.makedirs(video_cam)
@@ -145,5 +146,5 @@ def video_start(cap):  # работаем с видео
         out.release()  # Убедимся, что запись завершена, если цикл прервался во время записи
     cv2.destroyAllWindows()
 
-
-video_cap()
+message_user()
+#video_cap()

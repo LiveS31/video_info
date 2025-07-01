@@ -2,3 +2,4 @@ opencv-python~=4.11.0.86
 numpy~=2.3.1
 pip~=25.1.1
 pyTelegramBotAPI~=4.26.0
+pillow~=11.3.0

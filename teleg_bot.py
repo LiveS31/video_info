@@ -1,122 +1,197 @@
-# Телеграм бот для взаиможействия с файлами видео
-import configparser  # читаем данные из файла
+# teleg_bot.py
+import configparser
 import datetime
 import os
-
 import telebot
 from telebot import types
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+import threading
+import cv2
+from PIL import Image
+import io
 
+# Импортируем ВЕСЬ модуль main
+import main
 
-if os.name == 'posix':
-    video_cam = f'/home/lives/Видео'  # при необходимости заменить
-    sl = '/'
-else:
-    video_cam = f'c:\video'  # при необходимости заменить
-    sl = "'\'"
-video_len = len(os.listdir(video_cam)) # количество папок видео
+# Глобальные переменные для управления видеопотоком
+video_thread = None
+is_video_running = False
 
-
-if os.name == 'posix':#
-    screenshot_dir=f"/home/lives/Изображения" # изменить на нужный путь
-    sl = '/'
-else:
-    screenshot_dir = f"c:\Изображения"
-    sl = "'\'"
-foto_len = len(os.listdir(screenshot_dir))  # количество папок фото
-
-
-config = configparser.ConfigParser() # помещаем в переменную
-with open('info.ini', 'r') as f: # Чтение файла
+# Чтение конфигурации из info.ini
+config = configparser.ConfigParser()
+with open('info.ini', 'r', encoding='utf-8') as f:
     config.read_file(f)
 
-tel_key = config.get('section1', 'tel_bot') # выбираем ключ из файла
+tel_key = config.get('section1', 'tel_bot')
 userid = config.get('section1', 'userid')
-VideoBot = telebot.TeleBot(f'{tel_key}') # токен будет использоваться для бота
+VideoBot = telebot.TeleBot(f'{tel_key}')
 
-# включаем клавиатуру
+# Пути к папкам
+if os.name == 'posix':
+    video_cam_base_path = f'/home/lives/Видео'
+    screenshot_base_dir = f"/home/lives/Изображения"
+    sl = '/'
+else:
+    video_cam_base_path = f'C:\\video'
+    screenshot_base_dir = f"C:\\Изображения"
+    sl = '\\'
+
+def get_folders_list(base_path):
+    if not os.path.exists(base_path):
+        os.makedirs(base_path, exist_ok=True)
+    try:
+        return [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
+    except Exception as e:
+        print(f"Ошибка при получении списка папок из {base_path}: {e}")
+        return []
+
+# Клавиатура для основного меню
 markup = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
-#Делаем нужные кнопки
 button1 = KeyboardButton("ВИДЕО 📹")
 button2 = KeyboardButton("ФОТО 📷")
-markup.add(button1, button2) # выводим их в нужном порядке
-button3 = KeyboardButton('Посмотреть поток')
-markup.add(button3)
-
+button3 = KeyboardButton('Старт программы')
+button4 = KeyboardButton('Остановить поток')
+markup.add(button1, button2, button3)#, button4)
 
 @VideoBot.message_handler(commands=['start'])
 def start_message(message):
     VideoBot.send_message(message.chat.id, "Привет! Выбери опцию:", reply_markup=markup)
 
-
-
-
 @VideoBot.message_handler(content_types=['text'])
 def message_user(message):
-    #выбираем клавиатуру
+    global is_video_running, video_thread
+
+    if not (message.from_user.id == 0 or message.from_user.id == int(userid)):
+        VideoBot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
+        return
+
     us = types.InlineKeyboardMarkup()
-    print (int(userid))
-    # проверяем папки с видео
-    if (message.from_user.id == 0 or message.from_user.id == int(userid)) and message.text.lower() == 'видео 📹':
 
-        # считаем сколько внутри папок и выводимв интерактивное меню
-        for i in range (video_len):
-            # интерактивное меню
-            buti = types.InlineKeyboardButton(f'{os.listdir(video_cam)[i]}', callback_data=f'skan_video_{os.listdir(video_cam)[i]}')
+    if message.text.lower() == 'видео 📹':
+        current_video_folders = get_folders_list(video_cam_base_path)
+        if not current_video_folders:
+            VideoBot.send_message(message.from_user.id, 'Папка с видео пуста или не существует.')
+            return
+
+        for folder_name in current_video_folders:
+            buti = types.InlineKeyboardButton(folder_name, callback_data=f'skan_video_{folder_name}')
             us.add(buti)
-##
-    if (message.from_user.id == 0 or message.from_user.id == int(userid)) and message.text.lower() == 'фото 📷':
-        # считаем сколько внутри папок и выводим в интерактивное меню
-        for ii in range (foto_len):
-            # интерактивное меню
-            buti = types.InlineKeyboardButton(f'{os.listdir(screenshot_dir)[ii]}', callback_data=f'skan_foto_{os.listdir(screenshot_dir)[ii]}')
+        VideoBot.send_message(message.from_user.id, 'Выбери папку:', reply_markup=us)
+
+    elif message.text.lower() == 'фото 📷':
+        current_foto_folders = get_folders_list(screenshot_base_dir)
+        if not current_foto_folders:
+            VideoBot.send_message(message.from_user.id, 'Папка с фото пуста или не существует.')
+            return
+
+        for folder_name in current_foto_folders:
+            buti = types.InlineKeyboardButton(folder_name, callback_data=f'skan_foto_{folder_name}')
             us.add(buti)
-    # Выводим информацию пользователю
-    VideoBot.send_message(message.from_user.id, 'Выбери папку:', reply_markup=us)
+        VideoBot.send_message(message.from_user.id, 'Выбери папку:', reply_markup=us)
+
+    elif message.text.lower() == 'старт программы':
+        if not is_video_running or (video_thread and not video_thread.is_alive()):
+            video_thread = threading.Thread(target=main.video_cap, args=(0,)) # <--- ИЗМЕНЕНО ЗДЕСЬ
+            video_thread.start()
+            is_video_running = True
+            VideoBot.send_message(message.chat.id, "Запуск видеопотока...")
+        else:
+            VideoBot.send_message(message.chat.id, "Видеопоток уже запущен.")
+
+    elif message.text.lower() == 'остановить поток':
+        if is_video_running and video_thread and video_thread.is_alive():
+            main.stop_video_stream = True #
+            is_video_running = False
+            VideoBot.send_message(message.chat.id, "Отправлена команда на остановку видеопотока. Это может занять несколько секунд...")
+        else:
+            VideoBot.send_message(message.chat.id, "Видеопоток не запущен или уже остановлен.")
+    else:
+        VideoBot.send_message(message.chat.id, "Неизвестная команда или у вас нет доступа.")
 
 
-    @VideoBot.callback_query_handler(func=lambda call: True)
-    def callback_query(call):
-        global up_load
-        us2 = types.InlineKeyboardMarkup()
+@VideoBot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    global up_load
+    us2 = types.InlineKeyboardMarkup()
 
-        if call.data[:10] == 'skan_video':
-            video_fale = os.listdir(f'{video_cam}{sl}{call.data[11:]}')
-            for i in range(len(video_fale)):
-                buti = types.InlineKeyboardButton(video_fale[i], callback_data=f'up{video_fale[i]}')
-                us2.add(buti)
-            VideoBot.send_message(call.from_user.id, f'Выбери файл:', reply_markup=us2)
-            up_load = f'{video_cam}{sl}{call.data[11:]}{sl}'
+    if not (call.from_user.id == 0 or call.from_user.id == int(userid)):
+        VideoBot.answer_callback_query(call.id, "У вас нет доступа.")
+        return
 
+    if call.data.startswith('skan_video_'):
+        folder_name = call.data[11:]
+        current_video_path = os.path.join(video_cam_base_path, folder_name)
+        if not os.path.exists(current_video_path):
+            VideoBot.send_message(call.from_user.id, "Папка не найдена.")
+            return
 
-        elif call.data[:9] == 'skan_foto':
-            foto_fale = os.listdir(f'{screenshot_dir}{sl}{call.data[10:]}')
-            for i in range(len(foto_fale)):
-                buti = types.InlineKeyboardButton(foto_fale[i], callback_data=f'up{foto_fale[i]}')
-                us2.add(buti)
-            VideoBot.send_message(call.from_user.id, f'Выбери файл:', reply_markup=us2)
-            up_load = f'{screenshot_dir}{sl}{call.data[10:]}{sl}'
+        video_files = [f for f in os.listdir(current_video_path) if os.path.isfile(os.path.join(current_video_path, f))]
+        if not video_files:
+            VideoBot.send_message(call.from_user.id, 'В этой папке нет видео.')
+            return
 
+        for file_name in video_files:
+            buti = types.InlineKeyboardButton(file_name, callback_data=f'up{file_name}')
+            us2.add(buti)
+        VideoBot.send_message(call.from_user.id, f'Выбери файл:', reply_markup=us2)
+        up_load = f'{current_video_path}{sl}'
 
+    elif call.data.startswith('skan_foto_'):
+        folder_name = call.data[10:]
+        current_foto_path = os.path.join(screenshot_base_dir, folder_name)
+        if not os.path.exists(current_foto_path):
+            VideoBot.send_message(call.from_user.id, "Папка не найдена.")
+            return
 
-        if call.data[:2] == 'up':
-            file_path = f'{up_load}{call.data[2:]}'  # Замените на путь к вашему файлу
+        foto_files = [f for f in os.listdir(current_foto_path) if os.path.isfile(os.path.join(current_foto_path, f))]
+        if not foto_files:
+            VideoBot.send_message(call.from_user.id, 'В этой папке нет фото.')
+            return
+
+        for file_name in foto_files:
+            buti = types.InlineKeyboardButton(file_name, callback_data=f'up{file_name}')
+            us2.add(buti)
+        VideoBot.send_message(call.from_user.id, f'Выбери файл:', reply_markup=us2)
+        up_load = f'{current_foto_path}{sl}'
+
+    elif call.data.startswith('up'):
+        file_name_to_upload = call.data[2:]
+        if 'up_load' in globals():
+            file_path = f'{up_load}{file_name_to_upload}'
             if os.path.exists(file_path):
-                with open(file_path, 'rb') as f:
-                    VideoBot.send_document(call.from_user.id, f)
+                try:
+                    if file_path.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        try:
+                            img = Image.open(file_path)
+                            img_byte_arr = io.BytesIO()
+                            img.save(img_byte_arr, format=img.format, quality=70) # Качество 70%
+                            img_byte_arr.seek(0)
+                            if img_byte_arr.getbuffer().nbytes > 10 * 1024 * 1024: # >10MB
+                                VideoBot.send_message(call.from_user.id, "Фото слишком большое даже после сжатия.")
+                            else:
+                                VideoBot.send_photo(call.from_user.id, img_byte_arr)
+                        except Exception as img_e:
+                            print(f"Ошибка при сжатии или отправке фото: {img_e}. Попытка отправить оригинал.")
+                            with open(file_path, 'rb') as f:
+                                VideoBot.send_photo(call.from_user.id, f)
+                    elif file_path.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                        with open(file_path, 'rb') as f:
+                            VideoBot.send_video(call.from_user.id, f)
+                    else:
+                        with open(file_path, 'rb') as f:
+                            VideoBot.send_document(call.from_user.id, f)
+                except telebot.apihelper.ApiTelegramException as api_e:
+                    if "file is too big" in str(api_e):
+                        VideoBot.send_message(call.from_user.id, "Файл слишком большой для отправки через Telegram.\nПопробуйте сжать его или использовать облачное хранилище.")
+                    else:
+                        VideoBot.send_message(call.from_user.id, f"Произошла ошибка Telegram API: {api_e}")
+                except Exception as e:
+                    VideoBot.send_message(call.from_user.id, f"Ошибка при загрузке файла: {e}")
             else:
                 VideoBot.send_message(call.from_user.id, "Файл не найден.")
+        else:
+            VideoBot.send_message(call.from_user.id, "Пожалуйста, сначала выберите папку.")
 
-
-
-
-
-
-# while True:
-#     try:
-#         VideoBot.polling(none_stop=True)
-#     except:
-#         continue
-VideoBot.polling(none_stop=True)
-
+print("Бот запущен. Ожидание сообщений...")
+VideoBot.polling(none_stop=True, interval=0, timeout=20)
 

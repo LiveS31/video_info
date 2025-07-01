@@ -1,30 +1,35 @@
-# делаем фотки каждые 5 секунд при движении
+# запись фото и отправка его в телеграмм
 import os
-import cv2
-import configparser
+import cv2 # работа с видео
+import configparser #  для чтения ini
 
-config = configparser.ConfigParser() # помещаем в переменную
-with open('info.ini', 'r') as f: # Чтение файла
+# Чтение конфигурации из info.ini
+config = configparser.ConfigParser()
+with open('info.ini', 'r') as f:
     config.read_file(f)
-userid = config.get('section1', 'userid')
 
 
-# делаем screen по двидению
-def screen_mov(frame, times):
-    if os.name == 'posix':#
-        screenshot_dir=f"/home/lives/Изображения/mot_pic{times[6:]}"
+
+# Функция для создания скриншотов по движению
+def screen_mov(frame, times, bot, user):
+    # путь линукс
+    if os.name == 'posix':
+        screenshot_dir = f"/home/lives/Изображения/mot_pic{times[6:]}"
+        sl ='/'
     else:
-        screenshot_dir = f"C:\Изображения\mot_pic{times[6:]}"
-    if not os.path.exists(screenshot_dir): # если нет папки в текущем каталоге
-        os.makedirs(screenshot_dir) # - создаем ее
+        # путь для windows
+        screenshot_dir = f"C:\\Изображения\\mot_pic{times[6:]}"
+        sl = '\\'
 
+    # создаем папку если ее нет
+    if not os.path.exists(screenshot_dir):
+        os.makedirs(screenshot_dir)
 
-    #time # получаем время создание скрина
+    # записываем файл с фото
     filename = os.path.join(screenshot_dir, f"foto_detect_{times}.jpg")
-    cv2.imwrite(filename, frame) # Сохраняем весь кадр как картинку
+    cv2.imwrite(filename, frame)
+    # Отрываем файл и отправляем фото
+    with open(f'{screenshot_dir}{sl}foto_detect_{times}.jpg', 'rb') as f:
+        bot.send_photo(int(user), f)
 
     return f"Сохранен скрин: foto_detect_{times}.jpg"
-
-
-#print(seng_qw(12, 23))
-

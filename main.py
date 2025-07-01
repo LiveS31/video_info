@@ -1,154 +1,152 @@
- # видеонаблюдение адамтировано для минимально потребления трафика с низкой скорость интернета
- # Удаленноая рабоча черет телеграм бот
- # Возможность загрузки файлом на сервер прорабатывается ( неуверен, что это нужно)
-
+# видеонаблюдение
 import cv2
 import time
 import os
 import datetime
+from collections import deque
+from rec_foto import screen_mov
+import configparser
+import telebot
 
-
-
-
-from collections import deque  # Используем deque для буфера кадров
-from rec_foto import screen_mov  # Предполагается, что эта функция делает скриншоты
-
+# Глобальный флаг для остановки видеопотока
+stop_video_stream = False
 
 # Определяем константы для времени записи в секундах
 PRE_MOTION_RECORD_TIME = 10
 POST_MOTION_RECORD_TIME = 10
-FPS = 20  # Кадры в секунду для записываемого видео (можно настроить)
-FOURCC = cv2.VideoWriter_fourcc(*'mp4v')  # Кодек для сохранения видео (например, 'mp4v' для .mp4)
+FPS = 20 # устанавливаем кадры в сек
+FOURCC = cv2.VideoWriter_fourcc(*'mp4v')
 
+# Читаем конфиг из info.ini
+config = configparser.ConfigParser()
+with open('info.ini', 'r', encoding='utf-8') as f:
+    config.read_file(f)
 
-def video_cap(videos=0):  # получение кадра
-    # Открыть видеопоток с камеры (индекс 0)
+tel_key = config.get('section1', 'tel_bot') # получаем значение бота
+userid = config.get('section1', 'userid')  # получаем значение пользователя
+bot_instance = telebot.TeleBot(f'{tel_key}') # вводим токен бота в переменную
+
+def video_cap(videos=0):
+    global stop_video_stream # глобальная переменная
+    stop_video_stream = False # Сбрасываем флаг при запуске нового потока
+
     cap = cv2.VideoCapture(videos)
 
-    # Проверить, успешно ли открыт видеопоток
     if not cap.isOpened():
-        print("Ошибка: Не удалось открыть видеопоток")
-        exit()
+        print("Ошибка:\nНе удалось открыть видеопоток")
+        try:
+            bot_instance.send_message(int(userid), "Ошибка:\nНе удалось открыть видеопоток камеры.")
+        except Exception as e:
+            print(f"Ошибка при отправке сообщения об ошибке камеры:\n{e}")
+        return False
     else:
-        if str(videos) == '0':
-            vide = 'камера'
-        else:
-            vide = videos
+        vide = 'камера' if str(videos) == '0' else videos
         print(f'Видео запущено из источника: {vide} в {time.strftime('%H:%M:%S')} ')
-        return video_start(cap)
+        video_start(cap)
+        return True
 
-
-def video_start(cap):  # работаем с видео
+def video_start(cap):
+    global stop_video_stream # Используем глобальный флаг
     times = 0
-    recording = False  # Флаг для отслеживания состояния записи
-    motion_detected_time = 0  # Время, когда было обнаружено движение
-    out = None  # Объект для записи видео
-    frame_buffer = deque(maxlen=FPS * PRE_MOTION_RECORD_TIME)  # Буфер для хранения кадров до движения
+    recording = False
+    motion_detected_time = 0
+    out = None
+    frame_buffer = deque(maxlen=FPS * PRE_MOTION_RECORD_TIME)
 
-    # Получаем ширину и высоту кадра для настройки VideoWriter
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_size = (frame_width, frame_height)
 
+    if os.name == 'posix':
+        video_base_dir = f'/home/lives/Видео'
+    else:
+        video_base_dir = f'C:\\video'
+
     while True:
-        # Прочитать кадр
-        ret, frame1 = cap.read()  # кадр 1
-        ret, frame2 = cap.read()  # кадр 2
+        # Проверяем флаг остановки в начале каждого цикла
+        if stop_video_stream:
+            print("Получена команда на остановку видеопотока.")
+            break
+
+        ret, frame1 = cap.read()
+        ret, frame2 = cap.read()
 
         if not ret:
             print("Видеопоток завершен")
             break
 
-        # Добавляем текущий кадр в буфер (для записи "до" движения)
         frame_buffer.append(frame1.copy())
 
-        diff = cv2.absdiff(frame1, frame2)  # находим разницу между кадрами
-        gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)  # делаем разницу видео чернобелым для более четкой обработки
-
-        blur = cv2.GaussianBlur(gray, (5, 5), 0)  # фильтрация лишних контуров
-        _, thresh = cv2.threshold(blur, 20, 255, cv2.THRESH_BINARY)  # метод для выделения кромки объекта белым цветом
-        dilated = cv2.dilate(thresh, None,iterations=3)  # Данный метод противоположен методу erosion(), т.е. эрозии объекта, и расширяет выделенную на предыдущем этапе область
-        сontours, _ = cv2.findContours(dilated, cv2.RETR_TREE,
-                                       cv2.CHAIN_APPROX_SIMPLE)  # нахождение массива контурных точек
+        diff = cv2.absdiff(frame1, frame2)
+        gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        _, thresh = cv2.threshold(blur, 20, 255, cv2.THRESH_BINARY)
+        dilated = cv2.dilate(thresh, None, iterations=3)
+        contours, _ = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         motion_found = False
-        for contour in сontours:
-            (x, y, w, h) = cv2.boundingRect(
-                contour)  # преобразование массива из предыдущего этапа в кортеж из четырех координат
+        for contour in contours:
+            (x, y, w, h) = cv2.boundingRect(contour)
 
-            if cv2.contourArea(contour) < 700:  # условие при котором площадь выделенного объекта меньше 700 px
+            if cv2.contourArea(contour) < 1000: # реагировать на движения
                 continue
 
             motion_found = True
-            info = f"{time.strftime('%H:%M:%S %d.%m.%Y')} Обнаружен движущийся объект!"
+            info = f"Обнаружен движущийся объект!\n{time.strftime('%H:%M:%S %d.%m.%Y')}"
             print(info)
-            cv2.rectangle(frame1, (x, y), (x + w, y + h), (1, 255, 205), 2)  # получение прямоугольника из точек кортежа
+            cv2.rectangle(frame1, (x, y), (x + w, y + h), (1, 255, 205), 2)
             cv2.putText(frame1, f"Movement", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1, cv2.LINE_AA)
 
-            # Проверяем, нужно ли сделать скриншот (старый функционал)
+
+
             if int(time.time()) > times:
-                print(screen_mov(frame2, time.strftime('%H%M%S_%d%m%Y')))
-                times = int(time.time()) + 4  # Задержка перед следующим скриншотом
+                print(screen_mov(frame2, time.strftime('%H%M%S_%d%m%Y'), bot_instance, userid))
+                times = int(time.time()) + 10
+                try:
+                    bot_instance.send_message(int(userid), info)
+                except Exception as e:
+                    print(f"Ошибка при отправке сообщения в Telegram: {e}")
 
 
-        # --- НАЧАЛО БЛОКА КОДА ДЛЯ ЗАПИСИ ВИДЕО ПРИ ДВИЖЕНИИ ---
         if motion_found and not recording:
-            # Движение обнаружено и запись еще не началась
             recording = True
-            if os.name == 'posix':
-                video_cam = f'/home/lives/Видео/video{datetime.datetime.now().strftime('_%d%m%Y')}' # при необходимости заменить
-            else:
-                video_cam = f'c:\video\video_{datetime.datetime.now().strftime('%d%m%Y')}'  # при необходимости заменить
+            video_cam_day_dir = os.path.join(video_base_dir, f"video_{datetime.datetime.now().strftime('%d%m%Y')}")
 
-            if not os.path.exists(video_cam):  # если нет папки в текущем каталоге
-                os.makedirs(video_cam)
+            if not os.path.exists(video_cam_day_dir):
+                os.makedirs(video_cam_day_dir)
+            
             motion_detected_time = time.time()
-            #Формируем имя файла для видео
             video_filename = os.path.join(
-                video_cam,  # Предполагается, что у вас есть папка 'video'
+                video_cam_day_dir,
                 f"motion_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
             )
-            # Убедимся, что папка для видео существует
-            #os.makedirs(os.path.dirname(video_filename) or '.', exist_ok=True)
-
-            # Инициализируем объект для записи видео
             out = cv2.VideoWriter(video_filename, FOURCC, FPS, frame_size)
 
-            # Записываем кадры из буфера (кадры "до" движения)
             for buffered_frame in frame_buffer:
                 out.write(buffered_frame)
             print(f"Начало записи видео: {video_filename}")
+            bot_instance.send_message(int(userid), f"Начало записи видео.")
 
         if recording:
-            # Если идет запись, записываем текущий кадр
-            out.write(frame1)  # Записываем кадр с пометкой движения
+            out.write(frame1)
 
-            # Проверяем, прошло ли достаточно времени после последнего обнаружения движения
-            # или с момента начала записи, если движение было продолжительным
             if not motion_found and (time.time() - motion_detected_time) > POST_MOTION_RECORD_TIME:
-                # Движения нет и прошло 10 секунд после последнего обнаружения
-                # Или просто прошло 10 секунд после того, как движение исчезло
                 recording = False
-                out.release()  # Завершаем запись видео
+                out.release()
                 out = None
-                print(f"Завершение записи видео. Записано: {video_filename}")
+                print(f"Завершение записи видео. Записано:\n{video_filename}")
+                bot_instance.send_message(int(userid), f"Видеозапись завершена!")
             elif motion_found:
-                # Если движение все еще есть, обновляем время последнего обнаружения
                 motion_detected_time = time.time()
-        # --- КОНЕЦ БЛОКА КОДА ДЛЯ ЗАПИСИ ВИДЕО ПРИ ДВИЖЕНИИ ---
 
-        # Отображение кадра (необязательно, можно убрать для фоновой работы)
-        cv2.imshow("Motion Detection", frame1)  # Показываем кадр с выделением движения
+        cv2.imshow("Motion Detection", frame1)
 
-        # Нажмите 'q' для выхода из цикла
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    # Очистка ресурсов при выходе из цикла
     cap.release()
     if out is not None:
-        out.release()  # Убедимся, что запись завершена, если цикл прервался во время записи
+        out.release()
     cv2.destroyAllWindows()
+    print("Программа остановлена.")
 
-
-video_cap()

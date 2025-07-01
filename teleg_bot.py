@@ -49,10 +49,13 @@ def start_message(message):
     VideoBot.send_message(message.chat.id, "Привет! Выбери опцию:", reply_markup=markup)
 
 
+
+
 @VideoBot.message_handler(content_types=['text'])
 def message_user(message):
     #выбираем клавиатуру
     us = types.InlineKeyboardMarkup()
+    print (int(userid))
     # проверяем папки с видео
     if (message.from_user.id == 0 or message.from_user.id == int(userid)) and message.text.lower() == 'видео 📹':
 
@@ -63,7 +66,7 @@ def message_user(message):
             us.add(buti)
 ##
     if (message.from_user.id == 0 or message.from_user.id == int(userid)) and message.text.lower() == 'фото 📷':
-        # считаем сколько внутри папок и выводимв интерактивное меню
+        # считаем сколько внутри папок и выводим в интерактивное меню
         for ii in range (foto_len):
             # интерактивное меню
             buti = types.InlineKeyboardButton(f'{os.listdir(screenshot_dir)[ii]}', callback_data=f'skan_foto_{os.listdir(screenshot_dir)[ii]}')
@@ -72,21 +75,13 @@ def message_user(message):
     VideoBot.send_message(message.from_user.id, 'Выбери папку:', reply_markup=us)
 
 
-    # if inf_us:
-    #     inf_us=None
-    #     # Отправляем пользователю сообщение аларм
-    #     print ('fdsdfsdfsdfsdfsdfsdfsdfds')
-    #     VideoBot.send_message(message.from_user.id, 'dsgfdsgjdslkgndfslknglkrjagljgvdslvn' )
-
-
     @VideoBot.callback_query_handler(func=lambda call: True)
-
     def callback_query(call):
         global up_load
         us2 = types.InlineKeyboardMarkup()
 
         if call.data[:10] == 'skan_video':
-            video_fale = os.listdir(video_cam + sl + call.data[11:])
+            video_fale = os.listdir(f'{video_cam}{sl}{call.data[11:]}')
             for i in range(len(video_fale)):
                 buti = types.InlineKeyboardButton(video_fale[i], callback_data=f'up{video_fale[i]}')
                 us2.add(buti)
@@ -123,3 +118,5 @@ def message_user(message):
 #     except:
 #         continue
 VideoBot.polling(none_stop=True)
+
+

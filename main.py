@@ -7,9 +7,12 @@ import time
 import os
 import datetime
 
+
+
+
 from collections import deque  # Используем deque для буфера кадров
 from rec_foto import screen_mov  # Предполагается, что эта функция делает скриншоты
-from teleg_bot import message_user
+
 
 # Определяем константы для времени записи в секундах
 PRE_MOTION_RECORD_TIME = 10
@@ -64,8 +67,7 @@ def video_start(cap):  # работаем с видео
 
         blur = cv2.GaussianBlur(gray, (5, 5), 0)  # фильтрация лишних контуров
         _, thresh = cv2.threshold(blur, 20, 255, cv2.THRESH_BINARY)  # метод для выделения кромки объекта белым цветом
-        dilated = cv2.dilate(thresh, None,
-                             iterations=3)  # Данный метод противоположен методу erosion(), т.е. эрозии объекта, и расширяет выделенную на предыдущем этапе область
+        dilated = cv2.dilate(thresh, None,iterations=3)  # Данный метод противоположен методу erosion(), т.е. эрозии объекта, и расширяет выделенную на предыдущем этапе область
         сontours, _ = cv2.findContours(dilated, cv2.RETR_TREE,
                                        cv2.CHAIN_APPROX_SIMPLE)  # нахождение массива контурных точек
 
@@ -78,7 +80,8 @@ def video_start(cap):  # работаем с видео
                 continue
 
             motion_found = True
-            print(f"{time.strftime('%H:%M:%S %d.%m.%Y')} Обнаружен движущийся объект!")
+            info = f"{time.strftime('%H:%M:%S %d.%m.%Y')} Обнаружен движущийся объект!"
+            print(info)
             cv2.rectangle(frame1, (x, y), (x + w, y + h), (1, 255, 205), 2)  # получение прямоугольника из точек кортежа
             cv2.putText(frame1, f"Movement", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 1, cv2.LINE_AA)
 
@@ -87,12 +90,13 @@ def video_start(cap):  # работаем с видео
                 print(screen_mov(frame2, time.strftime('%H%M%S_%d%m%Y')))
                 times = int(time.time()) + 4  # Задержка перед следующим скриншотом
 
+
         # --- НАЧАЛО БЛОКА КОДА ДЛЯ ЗАПИСИ ВИДЕО ПРИ ДВИЖЕНИИ ---
         if motion_found and not recording:
             # Движение обнаружено и запись еще не началась
             recording = True
             if os.name == 'posix':
-                video_cam = f'/home/lives/Видео/video_{datetime.datetime.now().strftime('_%d%m%Y')}' # при необходимости заменить
+                video_cam = f'/home/lives/Видео/video{datetime.datetime.now().strftime('_%d%m%Y')}' # при необходимости заменить
             else:
                 video_cam = f'c:\video\video_{datetime.datetime.now().strftime('%d%m%Y')}'  # при необходимости заменить
 
@@ -146,5 +150,5 @@ def video_start(cap):  # работаем с видео
         out.release()  # Убедимся, что запись завершена, если цикл прервался во время записи
     cv2.destroyAllWindows()
 
-message_user()
-#video_cap()
+
+video_cap()

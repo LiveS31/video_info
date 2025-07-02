@@ -57,6 +57,7 @@ def video_start(cap):
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_size = (frame_width, frame_height)
 
+
     if os.name == 'posix':
         video_base_dir = f'/home/lives/Видео'
     else:
@@ -100,8 +101,8 @@ def video_start(cap):
 
 
             if int(time.time()) > times:
-                print(screen_mov(frame2, time.strftime('%H%M%S_%d%m%Y'), bot_instance, userid))
-                times = int(time.time()) + 10
+                print(screen_mov(frame2, time.strftime('%H%M%S_%d%m%Y'), bot_instance, userid)) # делаем скрины и передаем их дальше
+                times = int(time.time()) + 120 # примерно слать фото только каждые 2 минуты (если есть движение)
                 try:
                     bot_instance.send_message(int(userid), info)
                 except Exception as e:

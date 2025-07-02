@@ -46,31 +46,36 @@ def get_folders_list(base_path):
         return []
 
 # Клавиатура для основного меню
-markup = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True)
+markup = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True, one_time_keyboard=True) #Делаем клавиатуру
+#Делаем кнопки
 button1 = KeyboardButton("ВИДЕО 📹")
 button2 = KeyboardButton("ФОТО 📷")
 button3 = KeyboardButton('Старт программы')
 button4 = KeyboardButton('Остановить поток')
-markup.add(button1, button2, button3)#, button4)
+markup.add(button1, button2, button3)#, button4) Выводим кнопки
 
+
+# активируем по "/start"
 @VideoBot.message_handler(commands=['start'])
 def start_message(message):
     VideoBot.send_message(message.chat.id, "Привет! Выбери опцию:", reply_markup=markup)
 
+# работаем с обычным кодом
 @VideoBot.message_handler(content_types=['text'])
 def message_user(message):
     global is_video_running, video_thread
 
-    if not (message.from_user.id == 0 or message.from_user.id == int(userid)):
-        VideoBot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
+    if not (message.from_user.id == 0 or message.from_user.id == int(userid)): # прописывает id разрешенных пользователей
+        VideoBot.send_message(message.chat.id, "Нет доступа.")
         return
-
+# выбираем клавиатуру
     us = types.InlineKeyboardMarkup()
 
+# делаем интерактивные кнопки
     if message.text.lower() == 'видео 📹':
         current_video_folders = get_folders_list(video_cam_base_path)
         if not current_video_folders:
-            VideoBot.send_message(message.from_user.id, 'Папка с видео пуста или не существует.')
+            VideoBot.send_message(message.from_user.id, 'Папка пуста или отсутствует.')
             return
 
         for folder_name in current_video_folders:
@@ -81,7 +86,7 @@ def message_user(message):
     elif message.text.lower() == 'фото 📷':
         current_foto_folders = get_folders_list(screenshot_base_dir)
         if not current_foto_folders:
-            VideoBot.send_message(message.from_user.id, 'Папка с фото пуста или не существует.')
+            VideoBot.send_message(message.from_user.id, 'Папка пуста или отсутствует.')
             return
 
         for folder_name in current_foto_folders:
@@ -94,30 +99,32 @@ def message_user(message):
             video_thread = threading.Thread(target=main.video_cap, args=(0,)) # <--- ИЗМЕНЕНО ЗДЕСЬ
             video_thread.start()
             is_video_running = True
-            VideoBot.send_message(message.chat.id, "Запуск видеопотока...")
+            VideoBot.send_message(message.chat.id, "Запуск запуск программы...")
         else:
-            VideoBot.send_message(message.chat.id, "Видеопоток уже запущен.")
+            VideoBot.send_message(message.chat.id, "Программа была запущена ранее")
 
-    elif message.text.lower() == 'остановить поток':
+    elif message.text.lower() == 'остановить программу':
         if is_video_running and video_thread and video_thread.is_alive():
             main.stop_video_stream = True #
             is_video_running = False
-            VideoBot.send_message(message.chat.id, "Отправлена команда на остановку видеопотока. Это может занять несколько секунд...")
+            VideoBot.send_message(message.chat.id, "Отправлена команда на остановку видеопотока.\nЭто может занять несколько секунд...")
         else:
             VideoBot.send_message(message.chat.id, "Видеопоток не запущен или уже остановлен.")
     else:
         VideoBot.send_message(message.chat.id, "Неизвестная команда или у вас нет доступа.")
 
-
+# перехватываем утправление от интерактивной клавиатуры
 @VideoBot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     global up_load
+    # делаем новую интерактивную клавиатуру
     us2 = types.InlineKeyboardMarkup()
-
+# проверям пользователя
     if not (call.from_user.id == 0 or call.from_user.id == int(userid)):
         VideoBot.answer_callback_query(call.id, "У вас нет доступа.")
         return
 
+# канируем папки на файлы и передаем дальше для выполнения действий
     if call.data.startswith('skan_video_'):
         folder_name = call.data[11:]
         current_video_path = os.path.join(video_cam_base_path, folder_name)
@@ -136,6 +143,7 @@ def callback_query(call):
         VideoBot.send_message(call.from_user.id, f'Выбери файл:', reply_markup=us2)
         up_load = f'{current_video_path}{sl}'
 
+    # проверям соответствующую функцию
     elif call.data.startswith('skan_foto_'):
         folder_name = call.data[10:]
         current_foto_path = os.path.join(screenshot_base_dir, folder_name)
@@ -145,7 +153,7 @@ def callback_query(call):
 
         foto_files = [f for f in os.listdir(current_foto_path) if os.path.isfile(os.path.join(current_foto_path, f))]
         if not foto_files:
-            VideoBot.send_message(call.from_user.id, 'В этой папке нет фото.')
+            VideoBot.send_message(call.from_user.id, 'В папке нет фото.')
             return
 
         for file_name in foto_files:
@@ -167,7 +175,7 @@ def callback_query(call):
                             img.save(img_byte_arr, format=img.format, quality=70) # Качество 70%
                             img_byte_arr.seek(0)
                             if img_byte_arr.getbuffer().nbytes > 10 * 1024 * 1024: # >10MB
-                                VideoBot.send_message(call.from_user.id, "Фото слишком большое даже после сжатия.")
+                                VideoBot.send_message(call.from_user.id, "Размер больше допустимого.")
                             else:
                                 VideoBot.send_photo(call.from_user.id, img_byte_arr)
                         except Exception as img_e:
@@ -182,16 +190,17 @@ def callback_query(call):
                             VideoBot.send_document(call.from_user.id, f)
                 except telebot.apihelper.ApiTelegramException as api_e:
                     if "file is too big" in str(api_e):
-                        VideoBot.send_message(call.from_user.id, "Файл слишком большой для отправки через Telegram.\nПопробуйте сжать его или использовать облачное хранилище.")
+                        VideoBot.send_message(call.from_user.id, "Файл слишком большой для отправки через Telegram."
+                                                                 "\nПопробуйте сжать его или использовать облачное хранилище.")
                     else:
-                        VideoBot.send_message(call.from_user.id, f"Произошла ошибка Telegram API: {api_e}")
+                        VideoBot.send_message(call.from_user.id, f"Ошибка Telegram: {api_e}")
                 except Exception as e:
-                    VideoBot.send_message(call.from_user.id, f"Ошибка при загрузке файла: {e}")
+                    VideoBot.send_message(call.from_user.id, f"Ошибка загрузке файла: {e}")
             else:
                 VideoBot.send_message(call.from_user.id, "Файл не найден.")
         else:
-            VideoBot.send_message(call.from_user.id, "Пожалуйста, сначала выберите папку.")
+            VideoBot.send_message(call.from_user.id, "Выберите папку.")
 
-print("Бот запущен. Ожидание сообщений...")
+print("Бот запущен. Запустите программу...")
 VideoBot.polling(none_stop=True, interval=0, timeout=20)
 

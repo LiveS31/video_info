@@ -12,6 +12,7 @@ with open('info.ini', 'r') as f:
 
 # Функция для создания скриншотов по движению
 def screen_mov(frame, times, bot, user):
+    times = times.replace(':', '').replace('.', '').replace(' ', '_')
     # путь линукс
     if os.name == 'posix':
         screenshot_dir = f"/home/lives/Изображения/mot_pic{times[6:]}"

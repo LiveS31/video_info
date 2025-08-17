@@ -1,12 +1,10 @@
 # teleg_bot.py
 import configparser
-import datetime
 import os
 import telebot
 from telebot import types
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 import threading
-import cv2
 from PIL import Image
 import io
 
@@ -52,7 +50,7 @@ button1 = KeyboardButton("ВИДЕО 📹")
 button2 = KeyboardButton("ФОТО 📷")
 button3 = KeyboardButton('Старт программы')
 button4 = KeyboardButton('Остановить поток')
-markup.add(button1, button2, button3)#, button4) Выводим кнопки
+markup.add(button1, button2, button3)#, button4) #Выводим кнопки
 
 
 # активируем по "/start"
@@ -96,7 +94,7 @@ def message_user(message):
 
     elif message.text.lower() == 'старт программы':
         if not is_video_running or (video_thread and not video_thread.is_alive()):
-            video_thread = threading.Thread(target=main.video_cap, args=(0,)) # <--- ИЗМЕНЕНО ЗДЕСЬ
+            video_thread = threading.Thread(target=main.video_cap, args=(3,)) # <--- указать номер камеры
             video_thread.start()
             is_video_running = True
             VideoBot.send_message(message.chat.id, "Запуск запуск программы...")
@@ -203,4 +201,10 @@ def callback_query(call):
 
 print("Бот запущен. Запустите программу...")
 VideoBot.polling(none_stop=True, interval=0, timeout=20)
+# while True:
+#     try:
+#         VideoBot.polling(none_stop=True)
+#     except:
+#         continue
+# VideoBot.polling(none_stop=True)
 
